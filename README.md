@@ -8,6 +8,8 @@ Ce dépôt contient la configuration Docker Compose utilisée pour faire tourne
 - `run-n8n.sh` : script pratique qui charge `.env`, vérifie Docker/Compose puis lance n8n et suit les logs.
 - `.env` (ignoré par git) : configuration active. Un gabarit est fourni via `.env.example`.
 - `data/` : contient les workflows, identifiants et paramètres n8n (à sauvegarder régulièrement, ignoré dans git).
+- `bonjour_flutter/` : base Flutter Web affichant un « Bonjour » soigné + une vue de conversation (sera le futur front).
+- `remote-control/` : API FastAPI pour piloter Codex à distance (cf. section « Contrôle à distance »).
 
 ## Architecture suggérée (site + n8n)
 
@@ -20,6 +22,21 @@ Pour transformer le Raspberry Pi en serveur multi-services accessible partout :
 - **Accès distant** : DNS dynamique ou tunnel sécurisé (Cloudflare Tunnel, Tailscale) si ton IP change ou si tu ne veux pas ouvrir de ports.
 
 Cette structure reste modulaire : ajoute d’autres conteneurs (base de données, watcher, exporter métriques) et laisse n8n orchestrer tout en servant de “panneau de contrôle” via ton site web.
+
+## Contrôle à distance (Codex Remote)
+
+- Le dossier `remote-control/` fournit une API FastAPI (`app.py`) qui expose Codex via un endpoint `POST /codex/exec`.
+- Usage rapide :
+  ```bash
+  cd remote-control
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  uvicorn app:app --host 0.0.0.0 --port 8080
+  ```
+- L’API lit `~/.nvm/nvm.sh`, exécute `codex exec --json --dangerously-bypass-approvals-and-sandbox -C ~/Desktop/serveur -` puis renvoie les événements JSON et les flux bruts.
+- ⚠️ À sécuriser avant exposition (HTTPS + authentification, VPN/Tailscale). Sans protection, n’importe qui pourrait modifier le Raspberry.
+- Le front Flutter (ou une app mobile) pourra appeler cet endpoint pour envoyer des instructions à Codex et récupérer les réponses sans ouvrir le terminal local.
 
 ## Prérequis
 

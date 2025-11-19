@@ -1,2 +1,4 @@
 .env
 data/
+bonjour_flutter/build/
+remote-control/.venv/
