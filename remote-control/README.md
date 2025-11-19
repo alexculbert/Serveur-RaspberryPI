@@ -18,7 +18,7 @@ pip install -r requirements.txt
 ```bash
 cd ~/Desktop/serveur/remote-control
 source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8080
+CODEX_ALLOWED_ORIGINS="http://localhost:9000,https://mon-domaine" uvicorn app:app --host 0.0.0.0 --port 8080
 ```
 
 Endpoints :
@@ -26,7 +26,7 @@ Endpoints :
 - `GET /health` → ping simple.
 - `POST /codex/exec` → body JSON `{ "prompt": "Explique le workflow...", "timeout": 900 }`.
 
-L’exécution appelle `codex exec --json --dangerously-bypass-approvals-and-sandbox -C ~/Desktop/serveur -` (en chargeant `~/.nvm/nvm.sh`). La réponse inclut :
+L’exécution appelle `codex exec --json --dangerously-bypass-approvals-and-sandbox -C ~/Desktop/serveur -` (en chargeant `~/.nvm/nvm.sh`). CORS est configurable via la variable `CODEX_ALLOWED_ORIGINS` (liste d’origines séparées par des virgules, `*` par défaut). La réponse inclut :
 
 - `exit_code` : code retour de Codex.
 - `events` : les objets JSONL produits (plan, messages, diff, etc.).

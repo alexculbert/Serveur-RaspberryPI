@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-const conversationLog = '''
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+const _conversationLog = '''
 Utilisateur : quelle est le niveau d approv… ?
 Assistant  : Mode never (lecture seule).
 Utilisateur : fait le / supprime never ?
@@ -15,6 +18,9 @@ Assistant  : Installation Flutter ARM64, création app web Bonjour.
 Utilisateur : ouvre l’appli / ajoute conversation dans le site.
 Assistant  : (vous y êtes !)
 ''';
+
+const _defaultApiBaseUrl =
+    String.fromEnvironment('CODEX_API_URL', defaultValue: 'http://localhost:8080');
 
 void main() {
   runApp(const MyApp());
@@ -144,6 +150,29 @@ class BonjourScreen extends StatelessWidget {
                         );
                       },
                     ),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.tealAccent,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('Parler à Codex'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CodexConsolePage(),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ],
@@ -188,11 +217,246 @@ class ConversationPage extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
                 child: SelectableText(
-                  conversationLog,
+                  _conversationLog,
                   style: const TextStyle(
                     fontFamily: 'FiraCode',
                     fontSize: 16,
                     color: Color(0xFFe0e0e0),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CodexConsolePage extends StatefulWidget {
+  const CodexConsolePage({super.key});
+
+  @override
+  State<CodexConsolePage> createState() => _CodexConsolePageState();
+}
+
+class _CodexConsolePageState extends State<CodexConsolePage> {
+  final TextEditingController _promptController = TextEditingController();
+  bool _isSending = false;
+  String? _stdoutResult;
+  String? _stderrResult;
+  String? _error;
+
+  Uri get _codexUri => Uri.parse('$_defaultApiBaseUrl/codex/exec');
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendPrompt() async {
+    final prompt = _promptController.text.trim();
+    if (prompt.isEmpty) {
+      setState(() {
+        _error = "Écris d'abord une instruction pour Codex.";
+      });
+      return;
+    }
+    setState(() {
+      _isSending = true;
+      _error = null;
+    });
+    try {
+      final response = await http.post(
+        _codexUri,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      );
+      if (!mounted) return;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        setState(() {
+          _stdoutResult = decoded['stdout'] as String? ?? '';
+          _stderrResult = decoded['stderr'] as String? ?? '';
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _error =
+              'Erreur ${response.statusCode} : ${response.body.isEmpty ? 'Réponse vide' : response.body}';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Impossible de contacter Codex (${e.toString()})';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Console Codex'),
+        backgroundColor: const Color(0xFF0F2027),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0F2027),
+              Color(0xFF203A43),
+              Color(0xFF2C5364),
+            ],
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                color: Colors.black.withOpacity(0.65),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Colors.white24),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Envoie une instruction à Codex (API locale par défaut sur http://localhost:8080).',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _promptController,
+                        minLines: 3,
+                        maxLines: 6,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          hintText: 'Ex: Ajoute une page Flutter pour consulter Codex.',
+                          hintStyle: const TextStyle(color: Colors.white38),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Colors.white24),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _isSending ? null : _sendPrompt,
+                              icon: _isSending
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black,
+                                      ),
+                                    )
+                                  : const Icon(Icons.send),
+                              label: Text(_isSending ? 'Envoi...' : 'Envoyer'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.tealAccent,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      if (_stdoutResult != null) ...[
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Sortie',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: SelectableText(
+                            _stdoutResult!,
+                            style: const TextStyle(
+                              fontFamily: 'FiraCode',
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if ((_stderrResult != null && _stderrResult!.trim().isNotEmpty)) ...[
+                        const SizedBox(height: 24),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Erreurs',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF45171D),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: SelectableText(
+                            _stderrResult!,
+                            style: const TextStyle(
+                              fontFamily: 'FiraCode',
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),

@@ -8,7 +8,7 @@ Ce dépôt contient la configuration Docker Compose utilisée pour faire tourne
 - `run-n8n.sh` : script pratique qui charge `.env`, vérifie Docker/Compose puis lance n8n et suit les logs.
 - `.env` (ignoré par git) : configuration active. Un gabarit est fourni via `.env.example`.
 - `data/` : contient les workflows, identifiants et paramètres n8n (à sauvegarder régulièrement, ignoré dans git).
-- `bonjour_flutter/` : base Flutter Web affichant un « Bonjour » soigné + une vue de conversation (sera le futur front).
+- `bonjour_flutter/` : front Flutter Web (écran d’accueil, lecteur de conversation et console pour écrire à Codex).
 - `remote-control/` : API FastAPI pour piloter Codex à distance (cf. section « Contrôle à distance »).
 
 ## Architecture suggérée (site + n8n)
@@ -37,6 +37,14 @@ Cette structure reste modulaire : ajoute d’autres conteneurs (base de données
 - L’API lit `~/.nvm/nvm.sh`, exécute `codex exec --json --dangerously-bypass-approvals-and-sandbox -C ~/Desktop/serveur -` puis renvoie les événements JSON et les flux bruts.
 - ⚠️ À sécuriser avant exposition (HTTPS + authentification, VPN/Tailscale). Sans protection, n’importe qui pourrait modifier le Raspberry.
 - Le front Flutter (ou une app mobile) pourra appeler cet endpoint pour envoyer des instructions à Codex et récupérer les réponses sans ouvrir le terminal local.
+- Pour la couche web actuelle (`bonjour_flutter`), lancez :
+  ```bash
+  cd bonjour_flutter
+  export PATH="$HOME/flutter/bin:$PATH"
+  flutter run -d web-server --web-hostname=0.0.0.0 --web-port=9000 \
+    --dart-define=CODEX_API_URL=http://localhost:8080
+  ```
+  Ensuite, ouvrez `http://<IP>:9000` : bouton « Parler à Codex » → champ libre + sortie/erreurs. Ajustez `CODEX_API_URL` vers votre domaine public si besoin (avec HTTPS).
 
 ## Prérequis
 

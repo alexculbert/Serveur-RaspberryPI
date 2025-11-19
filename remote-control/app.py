@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 DEFAULT_WORKDIR = Path(
@@ -38,6 +39,13 @@ class CodexResponse(BaseModel):
     stderr: str
 
 
+allowed_origins_raw = os.environ.get("CODEX_ALLOWED_ORIGINS", "*")
+allowed_origins = (
+    ["*"]
+    if allowed_origins_raw.strip() == "*"
+    else [origin.strip() for origin in allowed_origins_raw.split(",") if origin.strip()]
+)
+
 app = FastAPI(
     title="Codex Remote Controller",
     description=(
@@ -45,6 +53,14 @@ app = FastAPI(
         "⚠️ À protéger absolument (auth + HTTPS) avant exposition."
     ),
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
